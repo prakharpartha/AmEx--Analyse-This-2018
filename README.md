@@ -15,4 +15,5 @@ MODELING PHASE :
 I applied PCA after removing the features with many missing values(>40%) and showing a high correlation (VIF>6). I used a no. of classification algorithms to train the final data, starting with Logistic regression, Random Forest, SVM and using ensebling by XGBoost and LightGBM classifier. LightGB Classifier gave best results, both by Cross Validation and Train Test spliting. Final order for processing the test set was made based on the confidence of prediction(by considering the difference between the predicted probability and the threshold probability).
 
 Language : Python
+
 IDE : Spyder

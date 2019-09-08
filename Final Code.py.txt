@@ -1,0 +1,624 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Sep 28 20:18:47 2018
+
+@author: Prakhar
+"""
+
+#IMPORTING TRAIN AND TEST DATA
+
+from statsmodels.tsa.stattools import acf, pacf
+import pandas as pd# -*- coding: utf-8 -*-
+from datetime import timedelta 
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy.stats
+import seaborn as sns
+import statsmodels.formula.api as smf
+import statsmodels.stats.multicomp as multi
+from pandas.tools.plotting import autocorrelation_plot
+
+train = pd.read_csv('Training_dataset_Original.csv')
+train.shape
+train.info()
+train.columns
+train.default_ind.value_counts()
+
+leader = pd.read_csv('Leaderboard_dataset.csv')
+leader.info()
+leader.shape
+leader.columns
+
+#data = data.dropna(subset=['sms'])
+
+#list-wise deletion
+train = train.dropna(subset=['mvar3'])
+train.shape
+train.info()
+train.columns
+train.isnull().sum()
+
+#df = df.replace(20,np.NaN)
+
+#replacing missing by NaN
+train = train.replace('missing', np.NaN)
+train = train.replace('na', np.NaN)
+leader = leader.replace('missing', np.NaN)
+leader = leader.replace('na', np.NaN)
+leader.isnull().sum()
+
+
+
+#DROPPING FEATURES WITH MORE THAN 40% MISSING VALUES
+
+mis = train.isnull().sum()
+mis1 = mis/79499*100
+mis1 = mis1[mis1>40]
+drop = mis1.index
+drop.shape
+#df.drop(['age'], axis = 1, inplace = True)
+train = train.drop(['mvar11','mvar23','mvar30','mvar31','mvar35','mvar40','mvar41','mvar45'], axis=1)
+train.shape
+train.info()
+train.columns
+
+train.to_csv('train1.csv')
+
+#>>> ser.astype('category')
+train['mvar47'][train['mvar47']=='C'] = 0 
+train['mvar47'][train['mvar47']=='L'] = 1 
+train = train.astype('float')
+leader['mvar47'][leader['mvar47']=='C'] = 0 
+leader['mvar47'][leader['mvar47']=='L'] = 1 
+leader = leader.astype('float')
+#finding correlation between different columns
+
+
+
+#FINGING CORRELATION BETWEEN ALL THE FEATURES
+
+corr = train.corr()
+# plot the heatmap
+sns.heatmap(corr, 
+        xticklabels=corr.columns,
+        yticklabels=corr.columns)
+plt.savefig('corr.jpeg')
+corr.style.background_gradient()
+plt.show()
+
+
+
+#DROPPING FEATURES WITH HIGH VIF
+
+#used
+from statsmodels.stats.outliers_influence import variance_inflation_factor 
+from statsmodels.tools.tools import add_constant
+
+def calculate_vif_(df, thresh=6):
+    '''
+    Calculates VIF each feature in a pandas dataframe
+    A constant must be added to variance_inflation_factor or the results will be incorrect
+
+    :param X: the pandas dataframe
+    :param thresh: the max VIF value before the feature is removed from the dataframe
+    :return: dataframe with features removed
+    '''
+    const = add_constant(df)
+    cols = const.columns
+    variables = np.arange(const.shape[1])
+    vif_df = pd.Series([variance_inflation_factor(const.values, i) 
+               for i in range(const.shape[1])], 
+              index=const.columns).to_frame()
+
+    vif_df = vif_df.sort_values(by=0, ascending=False).rename(columns={0: 'VIF'})
+    vif_df = vif_df.drop('const')
+    vif_df = vif_df[vif_df['VIF'] > thresh]
+
+    print('Features above VIF threshold:\n')
+    print(vif_df[vif_df['VIF'] > thresh])
+
+    col_to_drop = list(vif_df.index)
+
+    for i in col_to_drop:
+        print('Dropping: {}'.format(i))
+        df = df.drop(columns=i)
+
+    return df
+
+train_2 = calculate_vif_(train_1,6)
+
+
+train_2.shape
+train_2.columns
+
+
+#used
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.tools.tools import add_constant
+
+fin = train_2.columns
+#train = train.dropna(subset=['mvar3'])
+
+#In [13]: df.loc[:, df.columns.str.startswith('alp')]
+
+train_dum = train.loc[:,train.columns.isin(fin)]
+#train.dropna(subset=['mvar16'])
+train_dum.shape
+#train_dum = train_dum.append(train['mvar6'])
+train_dum['mvar16'] = train['mvar16']
+train_dum['mvar24'] = train['mvar24']
+train_dum['mvar46'] = train['mvar46']
+
+
+train_dum.shape
+
+train_dum = train_dum.dropna()
+
+fin1 = train_dum.columns
+train_fin = train.loc[:, train.columns.isin(fin1)]
+
+train_fin.shape
+train_fin.columns
+train_fin.info()
+
+#train_fin.to_csv('train_fin.csv')
+train_fin.isnull().sum()
+
+a = train_fin.mean()
+train_fin1 = train_fin.astype('category')
+b = train_fin1.mode()
+b = b.iloc[0]
+
+train_fin['mvar16'].value_counts()
+
+
+
+
+
+#MISSING VALUE IMPUTATION BY MEAN/MODE
+
+#df.loc[:, ['food', 'color']]
+
+#training data
+train_fin_sub1 = train_fin.loc[:,['mvar1','mvar2','mvar9','mvar12','mvar13','mvar24','mvar25','mvar28','mvar29','mvar33','mvar42','mvar44']] 
+#df.fillna(df.mean())
+train_fin_sub1 = train_fin_sub1.fillna(train_fin_sub1.mean())
+train_fin_sub1.to_csv('imputed.csv')
+train_fin_sub1.isnull().sum()
+train_fin_sub1.shape
+
+train_fin_sub2 = train_fin.loc[:,['mvar16','mvar34','mvar36','mvar37','mvar38','mvar39','mvar43','mvar46']] 
+#df.fillna(df.mean())
+#df = df.apply(lambda x:x.fillna(x.value_counts().index[0]))
+
+
+train_fin_sub2 = train_fin_sub2.apply(lambda x:x.fillna(x.value_counts().index[0]))
+train_fin_sub2.to_csv('imputed1.csv')
+train_fin_sub2.isnull().sum()
+train_fin_sub2.shape
+
+train_fin_sub3 = train_fin.loc[:,['application_key','mvar3','mvar4','mvar5','mvar14','mvar47','default_ind']]
+
+#leaderbord data
+leader.isnull().sum()
+test_lead_1 = leader.loc[:,['mvar1','mvar2','mvar9','mvar12','mvar13','mvar24','mvar25','mvar28','mvar29','mvar33','mvar42','mvar44']] 
+test_lead_1.shape
+test_lead_1.isnull().sum()
+test_lead_1 = test_lead_1.fillna(test_lead_1.mean())
+test_lead_1.isnull().sum()
+test_lead_1.shape
+
+test_lead_2 = leader.loc[:,['mvar16','mvar34','mvar36','mvar37','mvar38','mvar39','mvar43','mvar46']] 
+test_lead_2 = test_lead_2.apply(lambda x:x.fillna(x.value_counts().index[0]))
+test_lead_2.isnull().sum()
+test_lead_2.shape
+
+test_lead_3 = leader.loc[:,['application_key']]
+test_lead_4 = leader.loc[:,['mvar3','mvar4','mvar5']]
+test_lead_4 = test_lead_4.fillna(test_lead_4.mean())
+test_lead_4.isnull().sum()
+test_lead_5 = leader.loc[:,['mvar14','mvar47']]
+
+
+
+#DATA PREPARATION FOR MODELLING
+
+#trainingdata
+train_final = pd.concat([train_fin_sub1,train_fin_sub2,train_fin_sub3],axis=1)
+train_final.shape
+train_final.columns
+
+train_final.isnull().sum()
+#data_2.drop('index', inplace=True, axis=1)
+train_fin.drop('application_key', inplace=True, axis=1)
+train_fin['mvar47'] = pd.Categorical(train_final.mvar47)
+train_fin['mvar33'] = train_final['mvar33']*365
+#train_final.to_csv('train_final.csv')
+train_fin.shape
+train_fin.info()
+#data_2['Country'] = pd.Categorical(data_2.Country)
+
+#leaderboard data
+test_leaderboard = pd.concat([test_lead_1,test_lead_2,test_lead_3,test_lead_4,test_lead_5],axis=1)
+test_leaderboard.shape
+test_leaderboard.columns
+
+test_leaderboard = leader.loc[:, leader.columns.isin(fin1)]
+
+test_leaderboard.isnull().sum()
+test_leaderboard.drop('application_key', inplace=True, axis=1)
+test_leaderboard['mvar47'] = pd.Categorical(test_leaderboard.mvar47)
+test_leaderboard['mvar33'] = test_leaderboard['mvar33']*365
+test_leaderboard.shape
+test_leaderboard.info()
+test_leaderboard.columns
+
+
+
+
+#MODELLING
+
+y = train_fin['default_ind']
+train_fin.drop('default_ind', inplace=True, axis=1)
+X = train_fin
+y.shape
+X.shape
+X.columns
+X.isnull().sum()
+
+from sklearn.preprocessing import StandardScaler
+sc = StandardScaler()
+X = sc.fit_transform(X)
+test_1 = sc.fit_transform(test_leaderboard)
+
+
+
+#LOGISTIC REGRESSION
+
+from sklearn.linear_model import LogisticRegression
+from sklearn import metrics
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import cross_val_score
+from sklearn.metrics import accuracy_score
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=123)
+
+logreg = LogisticRegression()
+logreg.fit(X_train, y_train)
+pred = logreg.predict(X_test)
+logreg.score(X_test, y_test)
+print(accuracy_score(y_test,pred))
+
+#accuracy by cross validation
+from sklearn import model_selection
+from sklearn.model_selection import cross_val_score
+kfold = model_selection.KFold(n_splits=6, random_state=42)
+modelCV = LogisticRegression(C=0.001)
+scoring = 'accuracy'
+results = model_selection.cross_val_score(modelCV, train, y, cv=kfold, scoring=scoring)
+print("5-fold cross validation average accuracy: %.3f" % (results.mean()))
+
+'''
+pred = pd.DataFrame(pred)
+print(pred.shape)
+pred[pred==0] = 'N' 
+pred[pred==1] = 'Y'
+pred.columns = ['Loan_Status']
+ 
+submit1 = pd.concat([test['Loan_ID'], pred],axis=1)
+print(submit1.shape)
+
+submit1.to_csv('LR.csv')
+'''
+#hyperparamter tuning
+from sklearn.model_selection import GridSearchCV
+param_grid = {'C': [0.001, 0.01, 0.1, 1, 10, 100, 1000] }
+clf = GridSearchCV(LogisticRegression(), param_grid,cv=10)
+clf.fit(X,y)
+clf.best_params_
+
+
+
+
+#PCA
+
+import sklearn.decomposition as skdc ##Includes Principal Component Analysis, a method of dimensionality reduction
+import sklearn.pipeline as skpl ##Convenient module for calculating PCs and using them in logistic regression
+pca = skdc.PCA() #empty model space
+#pca = PCA()
+pcafit = pca.fit_transform(X,y) ##apply dimensionality reduction to X
+
+#fit = pca.fit(X)
+print(fit.explained_variance_ratio_)
+print(fit.components_)
+print(sum(var_explained[0:10]))
+
+
+pca = skdc.PCA(n_components = 19) #only include first 10 components
+fit = pca.fit(X)
+X = pca.transform(X)
+test_1 = pca.transform(test_leaderboard)
+X.shape
+test_1.shape
+
+'''
+#Backward Selection
+from sklearn.feature_selection import RFE
+model = LogisticRegression()
+rfe = RFE(model,25)
+fit = rfe.fit(X,y)
+print(fit.n_features_)
+print(fit.support_)
+print(fit.ranking_)
+'''
+
+
+
+
+
+
+
+#RANDOM FOREST
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.cross_validation import cross_val_score
+from sklearn.model_selection import cross_val_predict
+from sklearn import metrics
+
+#print np.mean(cross_val_score(clf, X_train, y_train, cv=10))
+forest = RandomForestClassifier(random_state=42)
+
+#predicted = cross_val_predict(forest, X, y, cv=10)
+#metrics.accuracy_score(y, predicted) 
+
+print(np.mean(cross_val_score(forest,X,y, cv=6)))
+forest = forest.fit(X,y)
+
+#print(forest.score(X,y))
+pred = forest.predict(test_1)
+print(forest.feature_importances_)
+'''
+pred = pd.DataFrame(pred)
+print(pred.shape)
+pred[pred==0] = 'N' 
+pred[pred==1] = 'Y'
+pred.columns = ['Loan_Status']
+ 
+submit1 = pd.concat([test['Loan_ID'], pred],axis=1)
+print(submit1.shape)
+
+submit1.to_csv('RF.csv')
+'''
+#HYPERPARAMTER TUNING
+#RANDOMISED SEARCH
+from sklearn.ensemble import RandomForestClassifier
+from scipy.stats import randint
+from sklearn.model_selection import RandomizedSearchCV
+#param_dist = {'bootstrap': [True, False],
+#              'max_depth': [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, None], 
+#              'max_features': ['auto', 'sqrt',0.2],  
+#              'min_samples_leaf': [1,5,10,50,100,200,500],
+#              'min_samples_split': [2,10,50,100,300,1000,1500],
+#              'n_estimators':[200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000]}
+param_dist = {'max_depth': [50,500,2000], #30
+              'max_features': ['auto', 'sqrt',0.2],    #sqrt
+              'min_samples_leaf': [100,500,2000],          #5
+              'min_samples_split': [200,1000,5000],         #5
+              'n_estimators':[50,100,200, 500]}          #200
+forest_1 = RandomForestClassifier(random_state=42)
+tree_cv = RandomizedSearchCV(estimator=forest_1, param_distributions = param_dist,verbose=5, n_iter = 60, cv=5, random_state=42)
+print(np.mean(cross_val_score(tree_cv,X,y, cv=10)))
+model = tree_cv.fit(X,y)
+
+rf_final = RandomForestClassifier(n_estimators=200, bootstrap= True, max_depth=30, max_features= 'sqrt', min_samples_leaf=5, min_samples_split=5)
+print(np.mean(cross_val_score(rf_final,X,y,cv=10)))
+
+print("Tuned Parameters {}".format(tree_cv.best_params_))
+#print("Best score is {}".format(tree_cv.best_score_))
+pred = model.predict(X_test)
+pred = pd.DataFrame(pred)
+
+
+#GRID SEARCH
+
+from sklearn.model_selection import GridSearchCV
+# Create the parameter grid based on the results of random search 
+param_grid = {
+    'bootstrap': [True],
+    'max_depth': [ 30, 35, 40, 45], #30
+    'max_features': [2, 3],    #2
+    'min_samples_leaf': [2,3, 4],    #3
+    'min_samples_split': [3, 4, 5],     #3
+    'n_estimators': [200, 300, 1000]    #1000
+}
+# Create a based model
+rf = RandomForestClassifier(random_state=42)
+# Instantiate the grid search model
+grid_search = GridSearchCV(estimator = rf, param_grid = param_grid, cv = 5)
+model1 =grid_search.fit(X,y)
+
+rf_final1 = RandomForestClassifier(n_estimators=1000, bootstrap= True, max_depth=30, max_features= 2, min_samples_leaf=3, min_samples_split=3)
+print(np.mean(cross_val_score(rf_final1,X,y,cv=10)))
+grid_search.best_params_
+grid_search.best_estimator_
+#grid_search.best_score_
+pred = model1.predict(test_1)
+pred = pd.DataFrame(pred)
+
+
+#SUPPORT VECTOR MACHINE
+from sklearn import svm
+model = svm.SVC()
+model.fit(X,y)
+model.score(X,y)
+predicted = model.predict(test_1)
+predicted = pd.DataFrame(predicted)
+print(predicted.shape)
+
+#cross validation
+from sklearn.model_selection import cross_val_score
+np.mean(cross_val_score(model, X, y, cv=6))
+
+#train test split
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import cross_val_score
+from sklearn import svm
+from sklearn.metrics import accuracy_score
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=123)
+supvec = svm.SVC()
+supvec.fit(X_train, y_train)
+predi_svm = supvec.predict(X_test)
+supvec.score(X_test, y_test)
+print(accuracy_score(y_test,pred))
+
+#hyperparmater tuning
+from sklearn.model_selection import GridSearchCV
+param_grid = {'C': [0.001, 0.01, 0.1, 1], 'kernel': ['linear','rbf','sigmoid'] }
+grid_search = GridSearchCV(svm.SVC(), param_grid, cv=10)
+grid_search.fit(X, y)
+grid_search.best_params_
+
+
+
+
+
+
+#XGBOOST
+X.shape
+#X.info()
+test_leaderboard.shape
+X['mvar47'] = pd.to_numeric(X['mvar47'])
+test_leaderboard['mvar47'] = pd.to_numeric(test_leaderboard['mvar47'])
+
+
+#Base learner- Tree
+import xgboost as xgb
+xg_cl = xgb.XGBClassifier(objective='reg:logistic', n_estimators=100, seed=123)
+xg_cl.fit(X,y)
+preds = xg_cl.predict(test_leaderboard)
+preds_xgb = pd.DataFrame(preds)
+print(preds_xgb.shape)
+
+#cross validating
+churn_matrix = xgb.DMatrix(data=X, label=y)
+params= {"objective":"reg:logistic"}
+cv_results = xgb.cv(dtrain = churn_matrix, params = params, nfold =6, num_boost_round=100, metrics = "error", as_pandas= True, seed=123)
+print(cv_results)
+print((1 - cv_results["test-error-mean"]).iloc[-1])
+
+#parameter tuning
+from sklearn.model_selection import RandomizedSearchCV
+gbm_param_grid = {'learning_rate': np.arange(0.1,1.1,0.1), 'n_estimators':[10,50,100,200,500,1000], 'subsample': np.arange(0.05,1.05,0.05)}
+gbm_param_grid_1 = {'learning_rate': [0.1,1], 'n_estimators':[100,1000], 'subsample': [0.2,0.7], 'gamma' : [0.001, 0.1,10], 'colsample_bytree': [0.2,0.7], 'max_depth': [50,500,1000]}
+gbm = xgb.XGBClassifier()
+randomized_mse = RandomizedSearchCV(estimator=gbm, param_distributions= gbm_param_grid_1, n_iter = 30, scoring='roc_auc', cv=4, verbose=10)
+randomized_mse.fit(X, y)
+print(randomized_mse.best_params_)
+print(randomized_mse.best_score_)
+
+from sklearn.model_selection import GridSearchCV
+dmatrix = xgb.DMatrix(data= X, label=y)
+gbm_matrix_grid = {'learning_rate': np.arange(0.,0.3,0.2), 'n_estimators':[25,50,75],'subsample':np.arange(0.35,0.45,0.01) }
+gbm_matrix_grid_1 = {'learning_rate': [0.1,0.3,0.5], 'n_estimators':[50,100,250,500], 'gamma': [1,3,10], 'max_depth': [50,140,250]  }
+gbm = xgb.XGBClassifier()
+grid_mse = GridSearchCV(estimator = gbm, param_grid = gbm_matrix_grid_1, scoring = 'roc_auc', cv=4, verbose=10)
+grid_mse.fit(X, y)
+print(grid_mse.best_params_)
+print(grid_mse.best_score_)
+
+
+
+
+#LightGBM Classsifier
+import lightgbm as lgb
+from lightgbm import LGBMClassifier
+mdl = LGBMClassifier(boosting_type= 'gbdt',
+          objective= 'binary',
+          metric= 'binary_logloss',
+          verbose= 100,
+          random_state= 123, silent=False)
+
+scores = cross_val_score(mdl, X, y, cv=6)
+print("Cross-validation scores:\n{}".format(scores))
+print("Average cross-validation score:{:.2f}".format(scores.mean()))
+mdl.fit(X, y)
+preds = mdl.predict(test_1)
+preds = pd.DataFrame(preds)
+print(preds.shape)
+
+#Tuning
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.model_selection import GridSearchCV
+lg = lgb.LGBMClassifier(silent=False, verbose=100, random_state=123, objective= 'binary', metric= 'binary_logloss', boosting_type= 'gbdt')
+param_dist = {"max_depth": [10,50,500,1000],                          #25
+              "learning_rate" : [0.001, 0.1, 10],           #0.1
+              "num_leaves": [900,2500, 5000,10000],           #2500
+              "n_estimators": [100, 200, 500, 1000],             #100
+              "sub_feature": [0.2,0.5,0.8],                    #0.5
+     #         "min_data": [1,10,50,100,250],
+     #         "min_data_in_bin":[1,10,50,100,250]
+                }
+r_search = RandomizedSearchCV(lg,n_jobs=-1, param_distributions=param_dist, cv = 5,n_iter=150, scoring="roc_auc", verbose=5, random_state=123)
+r_search.fit(X,y)
+r_search.best_params_
+r_search.best_estimator_
+r_search.best_score_
+
+scores = cross_val_score(lg, X, y, cv=5)
+     print("Cross-validation scores:\n{}".format(scores))
+     print("Average cross-validation score:{:.2f}".format(scores.mean()))
+     
+     
+param_dist1 = {"max_depth": [20,25,35,50],                   #20
+              "learning_rate" : [0.05,0.1,0.5],               #0.1
+              "num_leaves": [2000,2500,3000,3500],             #2000
+              "n_estimators": [50,75,100,150],                   #100
+              "sub_feature": [0.3,0.5,0.7]                          #0.5
+             }
+grid_search = GridSearchCV(lg, n_jobs=-1, param_grid=param_dist1, cv = 5, scoring="roc_auc", verbose=5)
+grid_search.fit(X1,y1)
+grid_search.best_params_
+grid_search.best_estimator_
+grid_search.best_score_
+
+scores = cross_val_score(lg, X, y, cv=shuffle_split)
+     print("Cross-validation scores:\n{}".format(scores))
+     print("Average cross-validation score:{:.2f}".format(scores.mean()))
+
+#training final model
+
+#params = {"max_depth": 20, "learning_rate" : 0.1, "num_leaves": 2000,  "n_estimators": 100, "sub_feature": 0.5}
+mdl_final = LGBMClassifier(boosting_type= 'gbdt',
+          objective= 'binary',
+          metric= 'binary_logloss',
+          verbose= 100,
+          random_state= 123, silent=False, max_depth=20, learning_rate=0.1, num_leaves= 2000, n_estimators= 100, sub_feature=0.5 )
+
+scores = cross_val_score(mdl_final, X1, y1, cv=5)
+print("Cross-validation scores:\n{}".format(scores))
+print("Average cross-validation score:{:.2f}".format(scores.mean()))
+
+
+
+
+#KNN
+# K NEAREST NEIGHBOUR
+
+from sklearn.neighbors import KNeighborsClassifier
+knn = KNeighborsClassifier()
+knn.fit(X,y)
+prediction = knn.predict(test_1)
+prediction = pd.DataFrame(prediction)
+print(prediction.shape)
+
+#crossvalidation
+from sklearn.model_selection import cross_val_score
+np.mean(cross_val_score(knn, X, y, cv=10))
+
+#hyperparamter tuning
+from sklearn.model_selection import GridSearchCV
+param = {'n_neighbors' : np.arange(1,50)}
+knn = KNeighborsClassifier()
+knn_cv = GridSearchCV(knn, param, cv=5)
+knn_cv.fit(X,y)
+knn_cv.best_params_
+knn_cv.best_score_
